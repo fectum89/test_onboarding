@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Онбординг видеоредактора</title>
 <link rel="preload" href="fonts/unbounded.woff2" as="font" type="font/woff2" crossorigin>
 <style>
@@ -39,6 +39,7 @@
     -webkit-tap-highlight-color: transparent;
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none;
+    touch-action: manipulation; /* без зума двойным тапом */
   }
 
   /* ---------- верхняя панель: назад + прогресс ---------- */
@@ -165,6 +166,14 @@
   }
   .log div { white-space: pre-wrap; word-break: break-all; }
 </style>
+
+<!-- Скрипт Apphud: без него приложение не покажет онбординг (см. инструкцию в Confluence: Web-onboarding) -->
+<script>
+(function(){var s=document.createElement("script");
+s.src="https://pwcdn.apphud.com/paywall-sdk.min.js";
+s.onload=function(){PaywallSDK.initialize().ready(function(){document.body.classList.add("sdk-ready")})};
+document.head.appendChild(s);})();
+</script>
 </head>
 <body>
 
@@ -186,7 +195,7 @@
       <div class="kicker">Монтаж <span>01 / 04</span></div>
       <h1>Монтаж прямо пальцем</h1>
       <p>Обрезайте, меняйте местами и склеивайте клипы на таймлайне за пару касаний.</p>
-      <a class="btn" href="https://actions.myapp.com/onboarding_step_2" data-go="next" data-label="step_2">Далее</a>
+      <a class="btn" href="https://actions.myapp.com/analytics/onboarding_step_next?step=1" data-go="next" data-label="analytics_step_1">Далее</a>
     </div>
   </section>
 
@@ -198,7 +207,7 @@
       <div class="kicker">Эффекты <span>02 / 04</span></div>
       <h1>Переходы, которые цепляют</h1>
       <p>Glitch, Iris, Zoom и VHS: выберите эффект и настройте силу прямо на превью.</p>
-      <a class="btn" href="https://actions.myapp.com/onboarding_step_3" data-go="next" data-label="step_3">Далее</a>
+      <a class="btn" href="https://actions.myapp.com/gallery_request" data-go="next" data-label="gallery_request">Далее</a>
     </div>
   </section>
 
@@ -279,7 +288,8 @@
   }
 
   // Кнопка = анимация + URL действия. Сам переход по href не отменяется:
-  // его перехватывает Apphud SDK (onShouldOpenURL / pay.apphud.com).
+  // его перехватывает приложение (actions.myapp.com) или Apphud SDK (pay.apphud.com).
+  // Одна кнопка = одна ссылка: att_request и gallery_request приложение логирует само.
   document.addEventListener('click', function (e) {
     var a = e.target.closest('a');
     if (!a) return;
@@ -290,27 +300,17 @@
 
   back.addEventListener('click', function () { goTo(current - 1); });
 
+  // iOS игнорирует user-scalable=no -> зум щипком отключаем отдельно
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (name) {
+    document.addEventListener(name, function (e) { e.preventDefault(); });
+  });
+
   // Если приложение ушло в фон и вернулось — продолжить видео
   document.addEventListener('visibilitychange', function () {
     var v = screens[current] && screens[current].querySelector('video');
     if (!v) return;
     if (document.hidden) v.pause(); else v.play().catch(function () {});
   });
-
-  // Заглушка PaywallSDK: Apphud SDK вызывает эти методы после загрузки страницы
-  var instance = {
-    processDomMacros: function (infos) {
-      log('SDK → processDomMacros (' + (Array.isArray(infos) ? infos.length : '?') + ')');
-      return true;
-    },
-    applyCustomInsets: function (top, bottom) {
-      document.documentElement.style.setProperty('--inset-top', (Number(top) || 0) + 'px');
-      document.documentElement.style.setProperty('--inset-bottom', (Number(bottom) || 0) + 'px');
-      log('SDK → applyCustomInsets ' + top + ' / ' + bottom);
-      return true;
-    }
-  };
-  window.PaywallSDK = { shared: function () { return instance; } };
 
   // Карточка с видео вписывается в свободное место с пропорцией 4:5
   function fitCards() {
